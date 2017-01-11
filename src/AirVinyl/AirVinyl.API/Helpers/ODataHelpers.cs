@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.OData.Core.UriParser;
+using System;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
@@ -88,23 +89,23 @@ namespace AirVinyl.API.Helpers
             return newRequest.ODataProperties().Path;
         }
 
-        //public static TKey GetKeyValue<TKey>(this HttpRequestMessage request, Uri uri)
-        //{
-        //    if (uri == null)
-        //    {
-        //        throw new ArgumentNullException("uri");
-        //    }
+        public static TKey GetKeyValue<TKey>(this HttpRequestMessage request, Uri uri)
+        {
+            if (uri == null)
+            {
+                throw new ArgumentNullException("uri");
+            }
 
-        //    //get the odata path Ex: ~/entityset/key/$links/navigation
-        //    var odataPath = request.CreateODataPath(uri);
-        //    var keySegment = odataPath.Segments.OfType<KeyValuePathSegment>().LastOrDefault();
-        //    if (keySegment == null)
-        //    {
-        //        throw new InvalidOperationException("This link does not contain a key.");
-        //    }
+            //get the odata path Ex: ~/entityset/key/$links/navigation
+            var odataPath = request.CreateODataPath(uri);
+            var keySegment = odataPath.Segments.OfType<KeyValuePathSegment>().LastOrDefault();
+            if (keySegment == null)
+            {
+                throw new InvalidOperationException("This link does not contain a key.");
+            }
 
-        //    var value = ODataUriUtils.ConvertFromUriLiteral(keySegment.Value, Microsoft.OData.Core.ODataVersion.V4);
-        //    return (TKey)value;
-        //}
+            var value = ODataUriUtils.ConvertFromUriLiteral(keySegment.Value, Microsoft.OData.Core.ODataVersion.V4);
+            return (TKey)value;
+        }
     }
 }
