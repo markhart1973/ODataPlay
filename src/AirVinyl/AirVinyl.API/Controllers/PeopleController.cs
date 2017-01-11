@@ -1,8 +1,10 @@
 ﻿using AirVinyl.API.Helpers;
 using AirVinyl.DataAccessLayer;
+using AirVinyl.Model;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Web;
 using System.Web.Http;
 using System.Web.OData;
@@ -106,10 +108,130 @@ namespace AirVinyl.API.Controllers
 
             if (propertyValue == null)
             {
-                return StatusCode(System.Net.HttpStatusCode.NoContent);
+                return StatusCode(HttpStatusCode.NoContent);
             }
 
             return this.CreateOKHttpActionResult(propertyValue.ToString());
+        }
+
+        public IHttpActionResult Post(Person person)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            _ctx.People.Add(person);
+            _ctx.SaveChanges();
+
+            return Created(person);
+        }
+
+        public IHttpActionResult Put([FromODataUri]int key, Person person)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var currentPerson = _ctx.People.FirstOrDefault(p => p.PersonId == key);
+            if (currentPerson == null)
+            {
+                return NotFound();
+            }
+
+            // Alternative: if the person isn't found: Upsert.  This must only
+            // be used if the responsibility for creating the key isn't at 
+            // server-level.  In our case, we're using auto-increment fields,
+            // so this isn't allowed - code is for illustration purposes only!
+            //if (currentPerson == null)
+            //{
+            //    // the key from the URI is the key we should use
+            //    person.PersonId = key;
+            //    _ctx.People.Add(person);
+            //    _ctx.SaveChanges();
+            //    return Created(person);
+            //}
+
+            // If there's an ID property, this should be ignored. But if we try
+            // to call SetValues with a different Key value, SetValues will throw an error.
+            // Therefore, we set the person's ID to the key.
+            currentPerson.PersonId = currentPerson.PersonId;
+            _ctx.Entry(currentPerson).CurrentValues.SetValues(currentPerson);
+            _ctx.SaveChanges();
+
+            return StatusCode(HttpStatusCode.NoContent);
+        }
+
+        // PATCH odata/People('key')
+        // alternative: attribute routing
+        // [HttpPatch]
+        // [ODataRoute("People({key})")]
+        // PATCH is for partial updates
+        public IHttpActionResult Patch([FromODataUri] int key, Delta<Person> patch)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            // find a matching person
+            var currentPerson = _ctx.People.FirstOrDefault(p => p.PersonId == key);
+
+            if (currentPerson == null)
+            {
+                return NotFound();
+            }
+
+            // Alternative: if the person isn't found: Upsert.  This must only
+            // be used if the responsibility for creating the key isn't at 
+            // server-level.  In our case, we're using auto-increment fields,
+            // so this isn't allowed - code is for illustration purposes only!
+            //if (currentPerson == null)
+            //{
+            //    var person = new Person();
+            //    person.PersonId = key;
+            //    patch.Patch(person);
+            //    _ctx.People.Add(person);
+            //    _ctx.SaveChanges();
+            //    return Created(person);
+            //}
+
+            // apply the changeset to the matching person
+            patch.Patch(currentPerson);
+            _ctx.SaveChanges();
+
+            return StatusCode(HttpStatusCode.NoContent);
+        }
+
+        // DELETE odata/People('key')
+        // alternative: attribute routing
+        // [HttpDelete]
+        // [ODataRoute("People({key})")]
+        public IHttpActionResult Delete([FromODataUri] int key)
+        {
+            var currentPerson = _ctx.People.Include("Friends").FirstOrDefault(p => p.PersonId == key);
+            if (currentPerson == null)
+            {
+                return NotFound();
+            }
+
+            // this person might be another person's friend, we
+            // need to this person from their friend collections
+            var peopleWithCurrentPersonAsFriend =
+                _ctx.People.Include("Friends")
+                .Where(p => p.Friends.Select(f => f.PersonId).AsQueryable().Contains(key));
+
+            foreach (var person in peopleWithCurrentPersonAsFriend.ToList())
+            {
+                person.Friends.Remove(currentPerson);
+            }
+
+            _ctx.People.Remove(currentPerson);
+            _ctx.SaveChanges();
+
+            // return No Content
+            return StatusCode(HttpStatusCode.NoContent);
         }
 
         protected override void Dispose(bool disposing)
